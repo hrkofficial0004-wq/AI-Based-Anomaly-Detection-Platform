@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Healthcare Anomaly Detection – AI Dashboard</title>
+  <meta name="description" content="Real-time AI-driven healthcare anomaly detection dashboard for doctors and healthcare staff. Monitor patient vitals, anomaly scores, and severity levels live." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <!-- Socket.IO -->
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<header class="header">
+  <div class="header-left">
+    <div class="logo">
+      <span class="logo-icon">🫀</span>
+      <div>
+        <h1 class="logo-title">HealthAI Monitor</h1>
+        <p class="logo-subtitle">AI-Driven Anomaly Detection System</p>
+      </div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="status-badge" id="connectionStatus">
+      <span class="status-dot"></span>
+      <span id="statusText">Connecting…</span>
+    </div>
+    <div class="live-clock" id="liveClock"></div>
+  </div>
+</header>
+
+<!-- ===== MAIN ===== -->
+<main class="main">
+
+  <!-- KPI Cards -->
+  <section class="kpi-grid" aria-label="Key Performance Indicators">
+
+    <div class="kpi-card" id="kpiTotalVitals">
+      <div class="kpi-icon total">📊</div>
+      <div class="kpi-body">
+        <span class="kpi-label">Total Readings</span>
+        <span class="kpi-value" id="totalVitals">–</span>
+        <span class="kpi-sub">patient vitals recorded</span>
+      </div>
+    </div>
+
+    <div class="kpi-card" id="kpiTotalAnomalies">
+      <div class="kpi-icon anomaly">⚠️</div>
+      <div class="kpi-body">
+        <span class="kpi-label">Anomalies Detected</span>
+        <span class="kpi-value" id="totalAnomalies">–</span>
+        <span class="kpi-sub" id="anomalyRate">–% anomaly rate</span>
+      </div>
+    </div>
+
+    <div class="kpi-card critical-card" id="kpiCritical">
+      <div class="kpi-icon critical">🚨</div>
+      <div class="kpi-body">
+        <span class="kpi-label">CRITICAL Alerts</span>
+        <span class="kpi-value" id="criticalCount">–</span>
+        <span class="kpi-sub">immediate attention needed</span>
+      </div>
+    </div>
+
+    <div class="kpi-card" id="kpiHigh">
+      <div class="kpi-icon high">🔴</div>
+      <div class="kpi-body">
+        <span class="kpi-label">HIGH Alerts</span>
+        <span class="kpi-value" id="highCount">–</span>
+        <span class="kpi-sub">urgent review required</span>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- Charts Row -->
+  <section class="charts-grid" aria-label="Vital Signs Trend Charts">
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <h2>Heart Rate <span class="unit">bpm</span></h2>
+        <span class="chart-badge" id="hrBadge">Live</span>
+      </div>
+      <canvas id="hrChart" aria-label="Heart rate trend chart"></canvas>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <h2>SpO₂ Oxygen <span class="unit">%</span></h2>
+        <span class="chart-badge" id="spo2Badge">Live</span>
+      </div>
+      <canvas id="spo2Chart" aria-label="SpO2 trend chart"></canvas>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <h2>Blood Pressure <span class="unit">mmHg</span></h2>
+        <span class="chart-badge" id="bpBadge">Live</span>
+      </div>
+      <canvas id="bpChart" aria-label="Blood pressure trend chart"></canvas>
+    </div>
+
+  </section>
+
+  <!-- Manual Injection Panel -->
+  <section class="inject-panel">
+    <div class="inject-header">
+      <h2>🧪 Manual Vital Submission</h2>
+      <p>Inject custom patient readings and get instant ML anomaly analysis</p>
+    </div>
+    <form id="injectForm" class="inject-form" autocomplete="off">
+      <div class="inject-fields">
+        <div class="field-group">
+          <label for="inp_pid">Patient ID</label>
+          <input id="inp_pid" type="text" value="P999" placeholder="e.g. P001" required />
+        </div>
+        <div class="field-group">
+          <label for="inp_hr">Heart Rate (bpm)</label>
+          <input id="inp_hr" type="number" value="72" min="10" max="300" required />
+        </div>
+        <div class="field-group">
+          <label for="inp_spo2">SpO₂ (%)</label>
+          <input id="inp_spo2" type="number" value="98" min="50" max="100" step="0.1" required />
+        </div>
+        <div class="field-group">
+          <label for="inp_sys">Systolic BP</label>
+          <input id="inp_sys" type="number" value="120" min="40" max="300" required />
+        </div>
+        <div class="field-group">
+          <label for="inp_dia">Diastolic BP</label>
+          <input id="inp_dia" type="number" value="80" min="20" max="200" required />
+        </div>
+        <div class="field-group">
+          <label for="inp_temp">Temperature (°C)</label>
+          <input id="inp_temp" type="number" value="36.6" min="30" max="45" step="0.1" required />
+        </div>
+      </div>
+      <div class="inject-actions">
+        <button type="submit" class="btn-submit" id="submitBtn">Analyse Vitals</button>
+        <button type="button" class="btn-danger" id="injectAnomalyBtn">⚡ Inject Anomaly</button>
+      </div>
+      <div id="injectResult" class="inject-result hidden"></div>
+    </form>
+  </section>
+
+  <!-- Anomaly Table -->
+  <section class="table-section">
+    <div class="table-header">
+      <h2>🔬 Anomaly Log</h2>
+      <div class="table-controls">
+        <select id="severityFilter" class="filter-select" aria-label="Filter by severity">
+          <option value="">All Severities</option>
+          <option value="CRITICAL">🚨 CRITICAL</option>
+          <option value="HIGH">🔴 HIGH</option>
+          <option value="MEDIUM">🟡 MEDIUM</option>
+          <option value="LOW">🟢 LOW</option>
+        </select>
+        <button class="btn-refresh" id="refreshBtn" aria-label="Refresh anomaly log">↺ Refresh</button>
+      </div>
+    </div>
+
+    <div class="table-wrapper" role="region" aria-label="Anomaly log table" tabindex="0">
+      <table id="anomalyTable">
+        <thead>
+          <tr>
+            <th>Patient</th>
+            <th>❤️ HR</th>
+            <th>🫁 SpO₂</th>
+            <th>🩸 BP</th>
+            <th>🌡️ Temp</th>
+            <th>Score</th>
+            <th>Severity</th>
+            <th>Clinical Notes</th>
+            <th>Time</th>
+            <th>Alert</th>
+          </tr>
+        </thead>
+        <tbody id="anomalyTbody">
+          <tr class="loading-row">
+            <td colspan="10">
+              <div class="spinner"></div>
+              <span>Loading anomaly data…</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<!-- Toast container -->
+<div id="toastContainer" aria-live="assertive" aria-atomic="true"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
